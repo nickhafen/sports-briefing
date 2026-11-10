@@ -791,6 +791,145 @@ def render_html(b, switcher=True):
     return "".join(out)
 
 
+# ------------------------------------------------------------ email layout
+# Mail clients (Gmail especially) drop CSS variables, <details> and most <style>
+# rules, so the email gets its own layout: tables plus inline styles only.
+
+E = dict(bg="#f3f4f6", card="#ffffff", line="#e2e5e9", fg="#1a1d21", dim="#6b7280",
+         link="#0b57d0", w="#15803d", wbg="#e8f5ec", l="#b91c1c", lbg="#fdecec",
+         tag="#eef0f4", font="-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif")
+
+
+def ea(text, href, color=None):
+    if not href:
+        return esc(text)
+    return f'<a href="{esc(href)}" target="_blank" style="color:{color or E["link"]};text-decoration:none">{esc(text)}</a>'
+
+
+def e_tag(text):
+    return (f'<span style="background:{E["tag"]};color:{E["dim"]};border-radius:4px;padding:1px 6px;'
+            f'font-size:12px;white-space:nowrap">{esc(text)}</span>')
+
+
+def e_row(label, body):
+    """One line inside a card: fixed-width gray label on the left, content on the right."""
+    return (f'<tr><td valign="top" style="width:64px;padding:3px 8px 3px 0;color:{E["dim"]};font-size:13px;'
+            f'white-space:nowrap">{label}</td><td valign="top" style="padding:3px 0;font-size:14px;'
+            f'color:{E["fg"]};line-height:1.4">{body}</td></tr>')
+
+
+def e_game(g, kind):
+    if kind == "next":
+        text = f"{g['date']}{' ' + g['time'] if g['time'] else ''} {g['where']} {g['opp']}"
+        body = ea(text, g["link"], E["fg"])
+        if g["tv"]:
+            body += f' <span style="color:{E["dim"]};font-size:13px">· {esc(g["tv"])}</span>'
+        label = "Next"
+    else:
+        res = g["result"] or "LIVE"
+        fg, bg = {"W": (E["w"], E["wbg"]), "L": (E["l"], E["lbg"])}.get(res, (E["dim"], E["tag"]))
+        badge = (f'<span style="background:{bg};color:{fg};font-weight:700;border-radius:4px;'
+                 f'padding:1px 6px;white-space:nowrap">{res} {esc(g["score"])}</span>')
+        body = badge + " " + ea(f"{g['where']} {g['opp']}", g["link"], E["fg"])
+        if g["detail"]:
+            body += f' <span style="color:{E["dim"]};font-size:13px">({esc(g["detail"])})</span>'
+        label = g["date"]
+    extras = [x for x in (g["note"], g["series"]) if x]
+    if extras:
+        body += " " + e_tag(" · ".join(extras))
+    if kind != "next" and g.get("recap"):
+        body += f'<div style="color:{E["dim"]};font-size:13px;margin-top:2px">{esc(g["recap"])}</div>'
+    return e_row(label, body)
+
+
+def e_card(title_html, meta, rows):
+    meta_html = f'<div style="color:{E["dim"]};font-size:13px;margin-top:1px">{esc(meta)}</div>' if meta else ""
+    inner = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px">'
+             f'{"".join(rows)}</table>') if rows else ""
+    return (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{E["card"]};'
+            f'border:1px solid {E["line"]};border-radius:8px;margin:0 0 10px;border-collapse:separate">'
+            f'<tr><td style="padding:11px 14px;font-family:{E["font"]}">'
+            f'<div style="font-size:16px;font-weight:700;color:{E["fg"]}">{title_html}</div>{meta_html}{inner}'
+            f'</td></tr></table>')
+
+
+def e_heading(text):
+    return (f'<div style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;'
+            f'color:{E["dim"]};margin:20px 0 8px">{esc(text)}</div>')
+
+
+def e_team(c, by):
+    rows = [e_game(g, "live") for g in c["live"]]
+    rows += [e_game(g, "result") for g in reversed(c["results"])]
+    if c["older"]:
+        rows.append(e_game(c["older"], "result"))
+    if c["next"] and c["active"]:
+        rows.append(e_game(c["next"], "next"))
+    note = (c["standing"] or {}).get("note")
+    if note:
+        rows.append(e_row("", f'<span style="color:{E["dim"]};font-size:13px">{esc(note)}</span>'))
+    for n in c["headlines"]:
+        rows.append(e_row("News", ea(n["title"], n["link"])))
+    if c["active"]:
+        rows.append(e_row("", f'<span style="font-size:13px">{ea("Standings →", c["standings_url"])}</span>'))
+    return e_card(ea(card_title(c, by), c["team_url"], E["fg"]), " · ".join(card_meta(c, by)), rows)
+
+
+def e_lines(sec):
+    rows = []
+    for l in sec["lines"]:
+        tag = " · ".join(x for x in (l["label"], l["series"]) if x)
+        body = ea(l["text"], l["link"], E["fg"]) + (" " + e_tag(tag) if tag else "")
+        if l["recap"]:
+            body += f'<div style="color:{E["dim"]};font-size:13px;margin-top:2px">{esc(l["recap"])}</div>'
+        rows.append(f'<tr><td style="padding:3px 0;font-size:14px;color:{E["fg"]};line-height:1.4">{body}</td></tr>')
+    if sec["extra"]:
+        rows.append(f'<tr><td style="padding:3px 0;font-size:13px;color:{E["dim"]}">+{sec["extra"]} more — '
+                    f'{ea("full scoreboard", sec["url"])}</td></tr>')
+    return e_card(ea(sec["name"], sec["url"], E["fg"]), sec.get("starts", ""), rows)
+
+
+def render_email(b):
+    d = b["generated"]
+    by = b["organize_by"]
+    body = [f'<div style="font-size:22px;font-weight:700;color:{E["fg"]}">Sports Briefing</div>'
+            f'<div style="font-size:13px;color:{E["dim"]};margin-top:2px">{d:%A, %B} {d.day}, {d.year}</div>']
+    for t, cards in team_sections(b, by):
+        body.append(e_heading(t) + "".join(e_team(c, by) for c in cards))
+    if b["playoffs"]:
+        body.append(e_heading("Playoffs") + "".join(e_lines(s) for s in b["playoffs"]))
+    if b["events"]:
+        body.append(e_heading("Major events") + "".join(e_lines(s) for s in b["events"]))
+    if b["more"]:
+        body.append(e_heading("More headlines"))
+        for label, items in b["more"].items():
+            rows = [f'<tr><td style="padding:3px 0;font-size:14px;line-height:1.4">{ea(n["title"], n["link"])}</td></tr>'
+                    for n in items]
+            body.append(e_card(esc(label), "", rows))
+    foot = []
+    quiet = [c["name"] for c in b["cards"] if not c["active"] and not c["headlines"] and not c["failed"]]
+    if quiet:
+        foot.append("Off-season / idle: " + esc(", ".join(quiet)) + ".")
+    bad = b["issues"] + [f"{c['name']} (no data)" for c in b["cards"] if c["failed"]]
+    if bad:
+        foot.append("<b>Could not load today:</b> " + esc(", ".join(dict.fromkeys(bad))) + ".")
+    if b["llm_note"]:
+        foot.append(esc(b["llm_note"]))
+    foot.append(f'Scores, standings and rankings from the {ea("ESPN", "https://www.espn.com")} data feed, '
+                "rendered by script. Headlines are original titles; an AI model only chose which to show.")
+    body.append(f'<div style="border-top:1px solid {E["line"]};margin-top:18px;padding-top:10px;font-size:12px;'
+                f'color:{E["dim"]};line-height:1.5">' + "<br>".join(foot) + "</div>")
+    return ('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<meta name="color-scheme" content="light only"></head>'
+            f'<body style="margin:0;padding:0;background:{E["bg"]}">'
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{E["bg"]}">'
+            f'<tr><td align="center" style="padding:16px 10px">'
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px">'
+            f'<tr><td style="font-family:{E["font"]};color:{E["fg"]}">' + "".join(body)
+            + '</td></tr></table></td></tr></table></body></html>')
+
+
 def render_md(b):
     d = b["generated"]
     md = [f"# Sports Briefing — {d:%a, %b} {d.day}, {d.year}", ""]
@@ -884,13 +1023,15 @@ def main():
 
     b = build(cfg, use_llm=not args.no_llm)
     page, md = render_html(b), render_md(b)
+    email_page = render_email(b)
     out = HERE / "output"
     (out / "archive").mkdir(parents=True, exist_ok=True)
     (out / "briefing.html").write_text(page, encoding="utf-8")
     (out / "briefing.md").write_text(md, encoding="utf-8")
     (out / "archive" / f"{NOW:%Y-%m-%d}.html").write_text(page, encoding="utf-8")
+    (out / "email.html").write_text(email_page, encoding="utf-8")   # preview of the emailed version
     if args.email or cfg.get("email", {}).get("enabled"):
-        send_email(cfg, f"Sports Briefing — {NOW:%a} {NOW.month}/{NOW.day}", render_html(b, switcher=False), md)
+        send_email(cfg, f"Sports Briefing — {NOW:%a} {NOW.month}/{NOW.day}", email_page, md)
     if args.open:
         webbrowser.open((out / "briefing.html").as_uri())
     if sys.stdout:                      # None when launched windowless by Task Scheduler
