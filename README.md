@@ -30,3 +30,6 @@ Tabs at the top of the page switch the team sections between **By location** (th
 
 ## Schedule
 A Windows scheduled task named "Daily Sports Briefing" runs `briefing.py --open` every day at 9:15 AM under your account (and at next sign-in if the computer was off). Change or remove it in Task Scheduler.
+
+## License
+MIT. See `LICENSE`.
