@@ -1,0 +1,65 @@
+{
+  "lookback_hours": 48,
+  "last_game_max_days": 8,
+  "news_hours": 36,
+  "llm": { "enabled": true, "model": "haiku", "timeout_seconds": 180 },
+
+  "organize_by": "location",
+  "groups": ["Detroit", "Chicago", "Utah", "BYU"],
+  "teams": [
+    { "group": "Detroit", "name": "Lions",      "league": "nfl",  "id": "8" },
+    { "group": "Detroit", "name": "Tigers",     "league": "mlb",  "id": "6" },
+    { "group": "Detroit", "name": "Pistons",    "league": "nba",  "id": "8" },
+    { "group": "Detroit", "name": "Red Wings",  "league": "nhl",  "id": "5" },
+    { "group": "Chicago", "name": "Bears",      "league": "nfl",  "id": "3" },
+    { "group": "Chicago", "name": "Cubs",       "league": "mlb",  "id": "16" },
+    { "group": "Chicago", "name": "White Sox",  "league": "mlb",  "id": "4" },
+    { "group": "Chicago", "name": "Bulls",      "league": "nba",  "id": "4" },
+    { "group": "Chicago", "name": "Blackhawks", "league": "nhl",  "id": "4" },
+    { "group": "Utah",    "name": "Real Salt Lake", "league": "mls",  "id": "4771" },
+    { "group": "Utah",    "name": "Royals",     "league": "nwsl", "id": "19141" },
+    { "group": "Utah",    "name": "Mammoth",    "league": "nhl",  "id": "129764" },
+    { "group": "Utah",    "name": "Jazz",       "league": "nba",  "id": "26" },
+    { "group": "BYU",     "name": "BYU Football", "league": "cfb", "id": "252" },
+    { "group": "BYU",     "name": "BYU Men's Basketball", "league": "mbb", "id": "252" }
+  ],
+
+  "playoff_leagues": ["nfl", "nba", "nhl", "mlb", "mls"],
+
+  "events": [
+    { "name": "FIFA World Cup",          "path": "soccer/fifa.world", "web": "https://www.espn.com/soccer/scoreboard/_/league/fifa.world" },
+    { "name": "FIFA Women's World Cup",  "path": "soccer/fifa.wwc",   "web": "https://www.espn.com/soccer/scoreboard/_/league/fifa.wwc" },
+    { "name": "Six Nations",             "path": "rugby/180659",      "web": "https://www.espn.com/rugby/scoreboard/_/league/180659" },
+    { "name": "The Rugby Championship",  "path": "rugby/244293",      "web": "https://www.espn.com/rugby/scoreboard/_/league/244293" },
+    { "name": "Rugby World Cup",         "path": "rugby/164205",      "web": "https://www.espn.com/rugby/scoreboard/_/league/164205" },
+    { "name": "Major League Rugby (playoffs only)", "path": "rugby/289262", "web": "https://www.espn.com/rugby/scoreboard/_/league/289262", "playoffs_only": true }
+  ],
+
+  "feeds": [
+    {
+      "label": "BYU — other sports",
+      "url": "https://byucougars.com/rss",
+      "hint": "Official BYU athletics feed. Keep ONLY postseason/championship results or berths, national titles, and major coaching hires/firings in any BYU sport. Football and men's basketball game results are already shown elsewhere, so drop those."
+    },
+    {
+      "label": "Major League Rugby",
+      "url": "https://news.google.com/rss/search?q=%22Major+League+Rugby%22+when:2d&hl=en-US&gl=US&ceid=US:en",
+      "hint": "Keep ONLY major MLR league news: championships, teams folding/joining/merging, marquee signings. Drop previews, match reports, opinion, and non-MLR rugby."
+    },
+    {
+      "label": "Olympics",
+      "url": "https://news.google.com/rss/search?q=Olympics+when:1d&hl=en-US&gl=US&ceid=US:en",
+      "only_between": [["2028-07-07", "2028-07-31"], ["2030-01-25", "2030-02-18"]],
+      "hint": "The Olympic Games are on or about to open. Keep at most 3 of the biggest stories (opening/closing, marquee medals, major US results). Drop everything else."
+    }
+  ],
+
+  "email": {
+    "enabled": false,
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 587,
+    "username": "",
+    "to": "",
+    "password_env": "SPORTS_BRIEF_SMTP_PASSWORD"
+  }
+}
