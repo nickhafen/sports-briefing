@@ -591,25 +591,50 @@ def pick_headlines(cands, cfg, use_llm):
     fallback = [c for c in cands if c["kind"] == "HeadlineNews"]
     if not (use_llm and cfg["llm"].get("enabled", True)):
         return fallback, "Headline filter off — showing ESPN's top team headlines unfiltered."
-    exe = shutil.which("claude") or str(Path.home() / ".local/bin/claude.exe")
     lines = []
     for i, c in enumerate(cands, 1):
         lines.append(f"[{i}] ({c['source']}) {c['title']}" + (f" — {c['desc'][:200]}" if c["desc"] else "")
                      + (f"\n     rule: {c['hint']}" if c["hint"] else ""))
+    prompt = PROMPT + "\n".join(lines)
+    exe = shutil.which("claude")
     try:
-        proc = subprocess.run(
-            [exe, "-p", "--model", cfg["llm"].get("model", "haiku"), "--tools", "",
-             "--strict-mcp-config", "--no-session-persistence",
-             "--system-prompt", "You are a precise filter. You reply with a single JSON object and nothing else."],
-            input=PROMPT + "\n".join(lines), capture_output=True, text=True, encoding="utf-8",
-            timeout=cfg["llm"].get("timeout_seconds", 180), cwd=str(HERE),
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        m = re.search(r"\{[^{}]*\}", proc.stdout or "")
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            reply = ask_api(prompt, cfg)            # hosted runs (GitHub Actions)
+        elif exe:
+            reply = ask_cli(exe, prompt, cfg)       # local runs: your Claude login, no key
+        else:
+            return fallback, "No AI headline filter configured — showing ESPN's top team headlines unfiltered."
+        m = re.search(r"\{[^{}]*\}", reply or "")
         keep = json.loads(m.group(0))["keep"]
         idx = sorted({int(k) for k in keep if 1 <= int(k) <= len(cands)})
         return [cands[i - 1] for i in idx], None
     except Exception as e:  # noqa: BLE001
         return fallback, f"Headline filter failed ({type(e).__name__}) — showing ESPN's top team headlines unfiltered."
+
+
+LLM_SYSTEM = "You are a precise filter. You reply with a single JSON object and nothing else."
+
+
+def ask_cli(exe, prompt, cfg):
+    proc = subprocess.run(
+        [exe, "-p", "--model", cfg["llm"].get("model", "haiku"), "--tools", "",
+         "--strict-mcp-config", "--no-session-persistence", "--system-prompt", LLM_SYSTEM],
+        input=prompt, capture_output=True, text=True, encoding="utf-8",
+        timeout=cfg["llm"].get("timeout_seconds", 180), cwd=str(HERE),
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return proc.stdout
+
+
+def ask_api(prompt, cfg):
+    import anthropic                                # only needed when an API key is set
+    client = anthropic.Anthropic(timeout=cfg["llm"].get("timeout_seconds", 180))
+    resp = client.messages.create(
+        model=cfg["llm"].get("api_model", "claude-haiku-5-5"), max_tokens=4000,
+        system=LLM_SYSTEM, output_config={"effort": "low"},
+        messages=[{"role": "user", "content": prompt}])
+    if resp.stop_reason == "refusal":
+        raise RuntimeError("model declined the request")
+    return "".join(b.text for b in resp.content if b.type == "text")
 
 
 # ---------------------------------------------------------------- rendering
@@ -822,19 +847,24 @@ def render_md(b):
 
 
 def send_email(cfg, subject, html_body, text_body):
+    """Settings come from SPORTS_BRIEF_* environment variables first, then config.json."""
     import smtplib
     from email.message import EmailMessage
-    e = cfg["email"]
-    pw = os.environ.get(e["password_env"])
-    if not pw:
-        sys.exit(f"Email is enabled but the {e['password_env']} environment variable is not set.")
+    e, env = cfg.get("email", {}), os.environ
+    user = env.get("SPORTS_BRIEF_SMTP_USER") or e.get("username")
+    to = env.get("SPORTS_BRIEF_EMAIL_TO") or e.get("to") or user
+    host = env.get("SPORTS_BRIEF_SMTP_HOST") or e.get("smtp_host", "smtp.gmail.com")
+    port = int(env.get("SPORTS_BRIEF_SMTP_PORT") or e.get("smtp_port", 587))
+    pw = env.get(e.get("password_env", "SPORTS_BRIEF_SMTP_PASSWORD"))
+    if not (user and pw):
+        sys.exit("Email requested, but the SMTP username or password is not set.")
     msg = EmailMessage()
-    msg["Subject"], msg["From"], msg["To"] = subject, e["username"], e["to"]
+    msg["Subject"], msg["From"], msg["To"] = subject, user, to
     msg.set_content(text_body)
     msg.add_alternative(html_body, subtype="html")
-    with smtplib.SMTP(e["smtp_host"], e["smtp_port"], timeout=30) as s:
+    with smtplib.SMTP(host, port, timeout=30) as s:
         s.starttls()
-        s.login(e["username"], pw)
+        s.login(user, pw)
         s.send_message(msg)
 
 
