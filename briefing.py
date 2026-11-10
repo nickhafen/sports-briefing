@@ -514,7 +514,8 @@ def build(cfg, use_llm):
 
     return dict(generated=NOW, cards=cards, playoffs=playoffs, events=events, more=more,
                 issues=list(dict.fromkeys(ISSUES)), llm_note=llm_note, groups=cfg["groups"],
-                organize_by=cfg.get("organize_by", "location"))
+                organize_by=cfg.get("organize_by", "location"),
+                email_organize_by=cfg.get("email_organize_by") or cfg.get("organize_by", "location"))
 
 
 def team_sections(b, by):
@@ -891,7 +892,7 @@ def e_lines(sec):
 
 def render_email(b):
     d = b["generated"]
-    by = b["organize_by"]
+    by = b["email_organize_by"]
     body = [f'<div style="font-size:22px;font-weight:700;color:{E["fg"]}">Sports Briefing</div>'
             f'<div style="font-size:13px;color:{E["dim"]};margin-top:2px">{d:%A, %B} {d.day}, {d.year}</div>']
     for t, cards in team_sections(b, by):
@@ -1018,6 +1019,8 @@ def main():
     cfg = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
     if args.by:
         cfg["organize_by"] = args.by
+    if cfg.get("email_organize_by") not in (None, *VIEWS):
+        sys.exit(f'config.json: email_organize_by must be one of {", ".join(VIEWS)} (got "{cfg["email_organize_by"]}").')
     if cfg.get("organize_by", "location") not in VIEWS:
         sys.exit(f'config.json: organize_by must be one of {", ".join(VIEWS)} (got "{cfg["organize_by"]}").')
 

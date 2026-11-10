@@ -5,6 +5,7 @@
   "llm": { "enabled": true, "model": "haiku", "timeout_seconds": 180 },
 
   "organize_by": "location",
+  "email_organize_by": "league",
   "groups": ["Detroit", "Chicago", "Utah", "BYU"],
   "teams": [
     { "group": "Detroit", "name": "Lions",      "league": "nfl",  "id": "8" },
