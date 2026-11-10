@@ -15,7 +15,7 @@
 ## Organizing the page
 Tabs at the top of the page switch the team sections between **By location** (the `groups` in `config.json`: Detroit, Chicago, Utah, BYU), **By league** (NFL, College football, NBA, …) and **By sport** (Football, Basketball, Hockey, Baseball, Soccer). Your browser remembers the last tab you picked. Playoffs, major events and other headlines stay in their own sections below.
 
-`organize_by` in `config.json` (`"location"`, `"league"` or `"sport"`) sets the layout for the text version, the email, and the tab a browser starts on before you've picked one.
+`organize_by` in `config.json` (`"location"`, `"league"` or `"sport"`) sets the layout for the text version and the tab a browser starts on before you've picked one. `email_organize_by` does the same for the email (it falls back to `organize_by` if left out).
 
 ## Options
 - `--by location|league|sport` overrides `organize_by` for one run.
