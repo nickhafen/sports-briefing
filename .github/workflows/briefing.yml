@@ -1,0 +1,95 @@
+name: Daily sports briefing
+
+on:
+  schedule:
+    # GitHub cron is UTC. Two entries cover daylight saving; the guard step
+    # below lets only the one that equals 9:15 AM Mountain time run.
+    - cron: "15 15 * * *"   # 9:15 AM MDT (summer)
+    - cron: "15 16 * * *"   # 9:15 AM MST (winter)
+  workflow_dispatch:        # "Run workflow" button for a manual run
+  push:                     # build-only check when the code changes (no email, no publish)
+    paths: ["briefing.py", "config.json", ".github/workflows/briefing.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: briefing-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: America/Denver
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      ran: ${{ steps.guard.outputs.run }}
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SPORTS_BRIEF_SMTP_USER: ${{ secrets.SMTP_USERNAME }}
+      SPORTS_BRIEF_SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SPORTS_BRIEF_EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      SPORTS_BRIEF_SMTP_HOST: ${{ vars.SMTP_HOST }}
+    steps:
+      - name: Skip the cron entry that is an hour off for this season
+        id: guard
+        run: |
+          run=true
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            zone=$(date +%Z)
+            [ "${{ github.event.schedule }}" = "15 15 * * *" ] && [ "$zone" != "MDT" ] && run=false
+            [ "${{ github.event.schedule }}" = "15 16 * * *" ] && [ "$zone" != "MST" ] && run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.run == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Install the Anthropic SDK (only when an API key is set)
+        if: steps.guard.outputs.run == 'true' && env.ANTHROPIC_API_KEY != ''
+        run: pip install --quiet anthropic
+
+      - name: Build the briefing
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          flags=""
+          if [ "${{ github.event_name }}" != "push" ] && [ -n "$SPORTS_BRIEF_SMTP_USER" ] && [ -n "$SPORTS_BRIEF_SMTP_PASSWORD" ]; then
+            flags="--email"
+          fi
+          python briefing.py $flags >> "$GITHUB_STEP_SUMMARY"
+          cp output/briefing.html output/index.html
+
+      - name: Keep the page as a downloadable file
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: briefing
+          path: output/briefing.html
+          retention-days: 14
+
+      - name: Package the page for GitHub Pages
+        if: steps.guard.outputs.run == 'true' && github.event_name != 'push' && vars.PUBLISH_PAGES == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: output
+
+  publish:
+    needs: build
+    if: needs.build.outputs.ran == 'true' && github.event_name != 'push' && vars.PUBLISH_PAGES == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

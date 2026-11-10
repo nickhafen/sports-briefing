@@ -33,3 +33,16 @@ A Windows scheduled task named "Daily Sports Briefing" runs `briefing.py --open`
 
 ## License
 MIT. See `LICENSE`.
+
+## Running on GitHub instead of your computer
+`.github/workflows/briefing.yml` builds the briefing on GitHub's servers every day at 9:15 AM Mountain time (once it is on the `main` branch). Everything below is optional and set under the repository's Settings → Secrets and variables → Actions:
+
+| Setting | Kind | What it turns on |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | secret | The AI headline filter (Claude Haiku). Without it, ESPN's top team headlines are shown unfiltered. |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` | secrets | Emails the briefing. For Gmail, the password is an app password. |
+| `EMAIL_TO` | secret | Where to send it (defaults to `SMTP_USERNAME`). |
+| `SMTP_HOST` | variable | Mail server, if not `smtp.gmail.com`. |
+| `PUBLISH_PAGES` = `true` | variable | Publishes the page with GitHub Pages (also set Settings → Pages → Source to "GitHub Actions"). The page is public. |
+
+Each run also shows the briefing on its summary page under the Actions tab and keeps the HTML as a download for 14 days. Use "Run workflow" there for a manual run.
