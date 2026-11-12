@@ -35,7 +35,7 @@ A Windows scheduled task named "Daily Sports Briefing" runs `briefing.py --open`
 MIT. See `LICENSE`.
 
 ## Running on GitHub instead of your computer
-`.github/workflows/briefing.yml` builds the briefing on GitHub's servers every day at about 3:05 AM Mountain time (once it is on the `main` branch; GitHub can start scheduled runs late, sometimes by hours). Everything below is optional and set under the repository's Settings → Secrets and variables → Actions:
+`.github/workflows/briefing.yml` builds the briefing on GitHub's servers every day at about 3:23 AM Mountain time (once it is on the `main` branch; GitHub can start scheduled runs late, sometimes by hours). Everything below is optional and set under the repository's Settings → Secrets and variables → Actions:
 
 | Setting | Kind | What it turns on |
 |---|---|---|
