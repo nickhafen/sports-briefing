@@ -3,9 +3,11 @@ name: Daily sports briefing
 on:
   schedule:
     # GitHub cron is UTC. Two entries cover daylight saving; the guard step
-    # below lets only the one that equals 9:15 AM Mountain time run.
-    - cron: "15 15 * * *"   # 9:15 AM MDT (summer)
-    - cron: "15 16 * * *"   # 9:15 AM MST (winter)
+    # below lets only the one that equals 3:05 AM Mountain time run.
+    # GitHub often starts scheduled runs hours late, so the early slot leaves
+    # room for that before morning; :05 avoids the busy top of the hour.
+    - cron: "5 9 * * *"     # 3:05 AM MDT (summer)
+    - cron: "5 10 * * *"    # 3:05 AM MST (winter)
   workflow_dispatch:        # "Run workflow" button for a manual run
   push:                     # build-only check when the code changes (no email, no publish)
     paths: ["briefing.py", "config.json", ".github/workflows/briefing.yml"]
@@ -39,8 +41,8 @@ jobs:
           run=true
           if [ "${{ github.event_name }}" = "schedule" ]; then
             zone=$(date +%Z)
-            [ "${{ github.event.schedule }}" = "15 15 * * *" ] && [ "$zone" != "MDT" ] && run=false
-            [ "${{ github.event.schedule }}" = "15 16 * * *" ] && [ "$zone" != "MST" ] && run=false
+            [ "${{ github.event.schedule }}" = "5 9 * * *" ] && [ "$zone" != "MDT" ] && run=false
+            [ "${{ github.event.schedule }}" = "5 10 * * *" ] && [ "$zone" != "MST" ] && run=false
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"
 
